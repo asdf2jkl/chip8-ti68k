@@ -1,6 +1,5 @@
 /*
-calculator specific functions (keypad)
-note, this may not be used.
+* All the functions other than _main go here (keyboard handling, display, timing [to be handled next])
 */
 
 
@@ -17,7 +16,7 @@ char getkey(unsigned char in_key, char mode) {
 	deal with this later
 	*/
 }
-#else	//ti-89
+#else	//TI-89
 char getkey(unsigned char in_key, char mode) {
 	/*
 		|7|8|9|x|
@@ -67,3 +66,28 @@ char getkey(unsigned char in_key, char mode) {
 	return out_key[in_key];
 }
 #endif
+
+
+/*
+Drawing to screen
+*/
+void draw_display(unsigned long *c8_display, void *virtual_display, char dark_mode) {
+	short x, y;
+	for (y = 0; y != 32; y++) {
+		for (x = 0; x != 64; x++) {
+			if (c8_display[(y % 32) * 2 + (x >= 32)] >> (x % 32) & 0x01) {	//please note that the screen may not start at zero, in which case I'll need to add one to each of the draw commands (or one in the if statement)
+				DrawPix(x, y, dark_mode ? A_REVERSE : A_NORMAL);
+				DrawPix(x + 1, y, dark_mode ? A_REVERSE : A_NORMAL);
+				DrawPix(x, y + 1, dark_mode ? A_REVERSE : A_NORMAL);
+				DrawPix(x + 1, y + 1, dark_mode ? A_REVERSE : A_NORMAL);
+			} else {
+				DrawPix(x, y, dark_mode ? A_NORMAL : A_REVERSE);
+				DrawPix(x + 1, y, dark_mode ? A_NORMAL : A_REVERSE);
+				DrawPix(x, y + 1, dark_mode ? A_NORMAL : A_REVERSE);
+				DrawPix(x + 1, y + 1, dark_mode ? A_NORMAL : A_REVERSE);
+			}
+		}
+	}
+	LCD_restore(virtual_display);
+	return;
+}

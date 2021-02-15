@@ -1,6 +1,9 @@
-// C Source File
-// Created 1/10/2021; 4:50:22 PM
-
+/* Main routine for chip8-ti68k interpreter
+* Created 1/10/2021; 4:50:22 PM
+* By Peter J. Lafreniere (Saladin, asdf2jkl)
+* 
+* WARNING: THERE IS NO PROTECTION AGAINST SEGFAULTS/RAM CORRUPTION TRIGGERED BY BADLY FORMED CHIP-8 ROMS, EXECUTE AT YOUR OWN RISK
+*/
 
 //Globals (I know, I know, but I don't care.)
 unsigned char timers[2];
@@ -13,7 +16,7 @@ unsigned char exit_flag = 10;	//when this counts down to 1, a keyboard check occ
 //#define OPTIMIZE_ROM_CALLS	//we'll see if this helps
 #define COMMENT_PROGRAM_NAME   "c8-68k"
 #define COMMENT_VERSION_STRING "0.0.0-pre-alpha"
-#define COMMENT_VERSION_NUMBER 0,0,0,1	//2021-01-22
+#define COMMENT_VERSION_NUMBER 0,0,0,2	//2021-02-14
 
 //This should be everything but timing. It's not pretty, but it works.
 void _main(int argc, char *argv[]) {
@@ -27,33 +30,42 @@ void _main(int argc, char *argv[]) {
 	unsigned char ctemp;	//char temp
 	unsigned char i, x, y;
 	unsigned char display_flag = 1;
+	char dark_mode = 0;	//this should be user set later
+	if (!argc) {
+		//error message
+		return;
+	}
 	FILE *load;
-	unsigned char *mem;
-	mem = calloc(4096, 1);
+	unsigned char *mem = calloc(4096, 1);
 	if (!mem) {
 		//error message
 		return;
 	}
-	unsigned long *display;
-	display = calloc(64, 4);	//64*32bit (screen is actually 32*64, so each pair of values are a single row, left to right, top to bottom)
+	unsigned long *display = calloc(64, 4);	//64*32bit (screen is actually 32*64, so each pair of values are a single row, left to right, top to bottom)
 	if (!display) {
 		//error message
 		free(mem);
 		return;
 	}
 	randomize();	//initilizing (sic) rng
-	//file loading and whatnot. If someone wants to tell me how vat.h works, I'll use that instead.
-	if (argc == 0) {
-		//error message
+	//setting up the virtual display buffer for clean drawing
+	void *virtual_display = malloc(LCD_SIZE);
+	if (!virtual_display) {
+		//error
 		free(mem);
 		free(display);
 		return;
 	}
+	PortSet(virtual_display, 239, 127);	//it doesn't need to be this big, but this way dark mode and stuff works (and the ram is allocated already, in a single-user system)
+	memset(virtual_display, dark_mode ? 0xFFFF : 0x0000, LCD_SIZE);
+
+	//file loading and whatnot. If someone wants to tell me how vat.h works, I'll use that instead.
 	load = fopen(argv[1], "rb");
 	if (!load) {
 		//you've got to love these nonexistant error messages
 		free(mem);
 		free(display);
+		free(virtual_display);
 		return;
 	}
 	/*
@@ -92,7 +104,8 @@ void _main(int argc, char *argv[]) {
 			case 0xE0:	//clearing the display
 				for (i = 63; i; i--)
 					display[i] = 0x00000000;
-				display_flag = 1;
+				//display_flag = 1;
+				draw_display(display, virtual_display, dark_mode);
 				break;
 			case 0xEE: //return from subroutine
 				pc = stack[stack[0]];
@@ -202,20 +215,18 @@ void _main(int argc, char *argv[]) {
 			break;
 		case 0xD0:	//Dxyn - Display n-byte sprite starting at memory location I at (Vx, Vy), set VF = collision
 			registers[0xF] = 0;
-			/* fix this to use 32 bit
-			for (y = mem[pc+1] >> 4 & 0x0F; mem[pc] >> 4 & 0x0F + 7 - y; y++) {
-				ctemp = 0;
-				for (x = mem[pc] & 0x0F; mem[pc] & 0x0F + 7 - x; x++) {
-					if (display[y % 32] >> (x % 64) & 1 == 1 && mem[I] >> ctemp & 1 == 1) {
+			for (y = mem[pc+1] >> 4 & 0x0F; y < (mem[pc + 1] & 0x0F); y++) {
+				ctemp = 7;
+				for (x = mem[pc] & 0x0F; x < (mem[pc] & 0x0F) + 7; x++) {
+					i = (y % 32) * 2 + (x >= 32);	//i is the proper value in the display array
+					if (display[i] >> (x % 32) & 0x00000001 + mem[I + (y % 32)] >> ctemp & 0x01 == 2)
 						registers[0xF] = 1;
-					}
-					stemp = (display[y % 32] >> (x % 64) & 1) ^ (mem[I] >> ctemp & 1);
-					display[y % 32] = display[y % 32] & ~(stemp << (x % 64));
-					ctemp++;
+					display[i] ^= (display[i] & (0x00000001 << (x % 32))) | (mem[I + (y % 32)] & (0x01 << ctemp));	//this is almost guaranteed to have an error in it somewhere
+					ctemp--;
 				}
 			}
-			*/
-			display_flag = 1;
+			//display_flag = 1;
+			draw_display(display, virtual_display, dark_mode);
 			break;
 		case 0xE0:	//keyboard handling
 			switch (mem[pc+1] & 0x0F) {
@@ -327,10 +338,11 @@ void _main(int argc, char *argv[]) {
 		if (pc >= 4096) {
 			exit_flag = 1;
 		}
-		if (display_flag == 1) {
-			//draw to display
+		/*
+		if (display_flag) {
+			draw_display(display, virtual_display, dark_mode);
 			display_flag = 0;
-		}
+		} */
 		exit_flag--;
 		if (exit_flag == 1) {
 			if (getkey(17, 0))
@@ -351,5 +363,7 @@ void _main(int argc, char *argv[]) {
 	}
 	free(mem);
 	free(display);
+	PortRestore();
+	free(virtual_display);
 	return;
 }
