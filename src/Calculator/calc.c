@@ -19,7 +19,6 @@ unsigned char exit_flag = 10;	//when this counts down to 1, a keyboard check occ
 #endif
 #define COMMENT_VERSION_STRING "0.0.0-pre-alpha"
 #define COMMENT_VERSION_NUMBER 0,0,0,3	//2021-03-14
-#define MIN_AMS 200
 
 #include <tigcclib.h>
 #include "calc.h"
@@ -70,14 +69,14 @@ void _main() {
 	unsigned char i, x, y;
 	//I'll replace these flags with a bitfield later, but only if there are more of them
 	unsigned char display_flag = 1;
-	char dark_mode = 0;	//this should be user set later
+	short dark_mode = DARK_FALSE;	//this should be user set later
 	short *rom;
 	unsigned char *mem = calloc(4096, 1);
 	if (!mem) {
 		//error message
 		return;
 	}
-	unsigned long *display = calloc(64, 4);	//64*32bit (screen is actually 32*64, so each pair of values are a single row, left to right, top to bottom)
+	unsigned long *display = malloc(256);	//64*32bit (screen is actually 32*64, so each pair of values are a single row, left to right, top to bottom)
 	if (!display) {
 		//error message
 		free(mem);
@@ -93,7 +92,7 @@ void _main() {
 		return;
 	}
 	PortSet(virtual_display, 239, 127);	//it doesn't need to be this big, but this way dark mode and stuff works (and the ram is allocated already, in a single-user system)
-	memset(virtual_display, dark_mode ? 0xFFFF : 0x0000, LCD_SIZE);
+	memset(virtual_display, dark_mode, LCD_SIZE);	//now I actually don't know if memset needs one or two byte imputs, even though it accepts a short
 
 	rom = file_pointer("ch8test");
 	if (!rom) {
@@ -106,7 +105,7 @@ void _main() {
 	
 	memcpy(mem + 0x200, rom + 2, rom[0]);	//find value to put in rom[0] later.
 
-    //replace with memset later
+    //replace with memcpy later
     i = 80;
     while(i--);
         mem[i] = numbers[i];
@@ -125,10 +124,9 @@ void _main() {
 			switch (mem[pc+1] & 0xFF) {
 
 			case 0xE0:	//clearing the display
-				for (i = 63; i; i--)
-					display[i] = 0x00000000;
+				memset(display, dark_mode, 256);
 				//display_flag = 1;
-				draw_display(display, virtual_display, dark_mode);
+				draw_display(display, virtual_display);
 				break;
 			case 0xEE: //return from subroutine
 				pc = stack.main[stack.pointer];
@@ -249,16 +247,16 @@ void _main() {
 				}
 			}
 			//display_flag = 1;
-			draw_display(display, virtual_display, dark_mode);
+			draw_display(display, virtual_display);
 			break;
 		case 0xE0:	//keyboard handling
 			switch (mem[pc+1] & 0x0F) {
 			case 1:
-				if (!getkey(mem[pc] & 0x0F, 0))
+				if (!getkey(mem[pc] & 0x0F, KEYMODE_TEST))
 					pc += 2;
 				break;
 			case 0xE:
-				if (getkey(mem[pc] & 0x0F, 0))
+				if (getkey(mem[pc] & 0x0F, KEYMODE_TEST))
 					pc += 2;
 				break;
 			}
@@ -268,7 +266,7 @@ void _main() {
 				if (mem[pc+1] & 0x0F == 7)
 					registers[mem[pc] & 0x0F] = timers[0];
 				else {
-					registers[mem[pc] & 0x0F >> 8] = getkey(0, 1);
+					registers[mem[pc] & 0x0F >> 8] = getkey(KEY_DUMMY, KEYMODE_LOOP);
 					if (registers[mem[pc] & 0x0F] == 17)
 						exit_flag = 1;
 				}
@@ -363,12 +361,12 @@ void _main() {
 		}
 		/*
 		if (display_flag) {
-			draw_display(display, virtual_display, dark_mode);
+			draw_display(display, virtual_display);
 			display_flag = 0;
 		} */
 		exit_flag--;
 		if (exit_flag == 1) {
-			if (getkey(17, 0))
+			if (getkey(KEY_F5, KEYMODE_TEST))
 				exit_flag = 0;
 		}
 	}
