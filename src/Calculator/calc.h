@@ -69,6 +69,20 @@ char getkey(unsigned char in_key, char mode) {
 
 
 /*
+Removing the last character in input string in order to pass it to FOpen. (TI-OS sanitizes inputs, so you have to enclose rom file paths in quotation marks)
+I'm not changing the input, though I really have no idea if it actually matters.
+*/
+char *unmaskRomArg(char* inputStr) {
+	unsigned long strLength = strlen(inputStr) - 2;
+	char *safeStr = malloc(strLength);	//I may be able to allocate one less byte, the math is just not working right now
+	if (!safeStr);
+		return NULL;
+	memcpy(safeStr, inputStr + 1, strLength);	//cuts off the first quotation mark, and cuts the last null byte off
+	safeStr[strLength - 1] = 0x00;
+	return safeStr;
+}
+
+/*
 Drawing to screen
 */
 void draw_display(unsigned long *c8_display, void *virtual_display, char dark_mode) {
@@ -90,4 +104,36 @@ void draw_display(unsigned long *c8_display, void *virtual_display, char dark_mo
 	}
 	LCD_restore(virtual_display);
 	return;
+}
+
+/*
+CALLBACK void interrupt_timer(void) {   //Set PRG so that this runs at 60hz intervals
+    timers[0] ? timers[0]++ : timers[0];
+    timers[1] ? timers[1]++ : timers[1];
+    //display sync and instruction pacing go here later
+    return;
+}
+*/
+
+
+//Credit to Ben Ingram (creator of gb68k) for these two functions, I really am/was lost
+SYM_ENTRY* file_entry(const char* name)
+{
+	SYM_ENTRY* entry = NULL;
+
+	FolderOp(NULL, FOP_LOCK | FOP_ALL_FOLDERS);
+	entry = SymFindFirst(NULL, FO_RECURSE | FO_SKIP_TEMPS);
+	while (entry) {
+		if (!entry->flags.bits.folder && strncmp(entry->name, name, 8) == 0) break;
+		else entry = SymFindNext();
+	}
+	FolderOp(NULL, FOP_UNLOCK | FOP_ALL_FOLDERS);
+	return entry;
+}
+
+void* file_pointer(const char* name)
+{
+	SYM_ENTRY* entry = file_entry(name);
+	if (entry == NULL) return NULL;
+	else return HeapDeref(entry->handle);
 }

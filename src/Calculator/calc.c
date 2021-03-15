@@ -1,41 +1,77 @@
 /* Main routine for chip8-ti68k interpreter
 * Created 1/10/2021; 4:50:22 PM
 * By Peter J. Lafreniere (Saladin, asdf2jkl)
-* 
+*
 * WARNING: THERE IS NO PROTECTION AGAINST SEGFAULTS/RAM CORRUPTION TRIGGERED BY BADLY FORMED CHIP-8 ROMS, EXECUTE AT YOUR OWN RISK
 */
 
 //Globals (I know, I know, but I don't care.)
-unsigned char timers[2];
+volatile unsigned char timers[2];
 unsigned char exit_flag = 10;	//when this counts down to 1, a keyboard check occurs
+
+
+#define SAVE_SCREEN
+//#define OPTIMIZE_ROM_CALLS	//we'll see if this helps
+#ifdef USE_TI89
+#define COMMENT_PROGRAM_NAME   "c889"
+#else
+#define COMMENT_PROGRAM_NAME   "c868k"
+#endif
+#define COMMENT_VERSION_STRING "0.0.0-pre-alpha"
+#define COMMENT_VERSION_NUMBER 0,0,0,3	//2021-03-14
+#define MIN_AMS 200
 
 #include <tigcclib.h>
 #include "calc.h"
 
-#define SAVE_SCREEN
-//#define OPTIMIZE_ROM_CALLS	//we'll see if this helps
-#define COMMENT_PROGRAM_NAME   "c8-68k"
-#define COMMENT_VERSION_STRING "0.0.0-pre-alpha"
-#define COMMENT_VERSION_NUMBER 0,0,0,2	//2021-02-14
-
 //This should be everything but timing. It's not pretty, but it works.
-void _main(int argc, char *argv[]) {
+void _main() {
 
+    /*
+    const unsigned long numbers[20] = {0xF0909090,0xF0206020,
+                            0x2070F010,0xF080F0F0,
+                            0x10F010F0,0x9090F010,
+                            0x10F080F0,0x10F0F080,
+                            0xF090F0F0,0x10204040,
+                        	0xF090F090,0xF0F090F0,
+                        	0x10F0F090,0xF09090E0,
+                        	0x90E090E0,0xF0808080,
+                        	0xF0E09090,0x90E0F080,
+                        	0xF080F0F0,0x80F08080};
+    */
+    const unsigned char numbers[80] = {0xF0,0x90,0x90,0x90,0xF0,
+                      			 0x20,0x60,0x20,0x20,0x70,
+                        	   	 0xF0,0x10,0xF0,0x80,0xF0,
+                       			 0xF0,0x10,0xF0,0x10,0xF0,
+                	        	 0x90,0x90,0xF0,0x10,0x10,
+        	                	 0xF0,0x80,0xF0,0x10,0xF0,
+	                        	 0xF0,0x80,0xF0,0x90,0xF0,
+                        		 0xF0,0x10,0x20,0x40,0x40,
+                        		 0xF0,0x90,0xF0,0x90,0xF0,
+                        		 0xF0,0x90,0xF0,0x10,0xF0,
+                        		 0xF0,0x90,0xF0,0x90,0x90,
+                        		 0xE0,0x90,0xE0,0x90,0xE0,
+                        		 0xF0,0x80,0x80,0x80,0xF0,
+                        		 0xE0,0x90,0x90,0x90,0xE0,
+                        		 0xF0,0x80,0xF0,0x80,0xF0,
+                        		 0xF0,0x80,0xF0,0x80,0x80};
 	//init
-	unsigned char registers[16];
-	unsigned short pc, I;
-	unsigned short stack[17];	//stack[0] = stack pointer
-	unsigned short filecheck, invfile;
+	unsigned char registers[16] = {0};
+	unsigned short pc, I = 0;
+	pc = 0x200;
+	struct {
+        unsigned short main[16];
+        char pointer;
+        } stack;
+    stack.main[0] = 0;
+    stack.pointer = 0;
 	unsigned short stemp;	//short temp
 	unsigned char ctemp;	//char temp
 	unsigned char i, x, y;
+	//I'll replace these flags with a bitfield later, but only if there are more of them
 	unsigned char display_flag = 1;
 	char dark_mode = 0;	//this should be user set later
-	if (!argc) {
-		//error message
-		return;
-	}
-	FILE *load;
+	short *rom;
 	unsigned char *mem = calloc(4096, 1);
 	if (!mem) {
 		//error message
@@ -59,42 +95,29 @@ void _main(int argc, char *argv[]) {
 	PortSet(virtual_display, 239, 127);	//it doesn't need to be this big, but this way dark mode and stuff works (and the ram is allocated already, in a single-user system)
 	memset(virtual_display, dark_mode ? 0xFFFF : 0x0000, LCD_SIZE);
 
-	//file loading and whatnot. If someone wants to tell me how vat.h works, I'll use that instead.
-	load = fopen(argv[1], "rb");
-	if (!load) {
-		//you've got to love these nonexistant error messages
-		free(mem);
-		free(display);
-		free(virtual_display);
-		return;
-	}
+	rom = file_pointer("ch8test");
+	if (!rom) {
+		fileExit:
+        free(mem);
+        free(display);
+        free(virtual_display);
+        return;
+    }
+	
+	memcpy(mem + 0x200, rom + 2, rom[0]);	//find value to put in rom[0] later.
+
+    //replace with memset later
+    i = 80;
+    while(i--);
+        mem[i] = numbers[i];
+
 	/*
-	I don't want to bother with the vat, so I suppose this should work instead.
-	catching all the errors is tedious, but this should work
+	if (IsPRGEnabled());
+        EnablePRG();
+    char save_prg_rate = (char)PRG_getRate();
+    unsigned char save_prg_start = PRG_getStart();
+    OSVRegisterTimer(1, 1, interrupt_timer);
 	*/
-	filecheck = fread(registers, 1, 16, load);
-	invfile = 16 - filecheck;
-	filecheck = fread(timers, 1, 2, load);
-	invfile = 2 - filecheck + invfile;
-	filecheck = fread(&pc, 2, 1, load);
-	invfile = 1 - filecheck + invfile;
-	filecheck = fread(&I, 2, 1, load);
-	invfile = 1 - filecheck + invfile;
-	filecheck = fread(stack, 2, 17, load);
-	invfile = 17 - filecheck + invfile;
-	filecheck = fread(mem, 1, 4096, load);
-	invfile = 4093 - filecheck + invfile;
-	filecheck = fread(display, 4, 64, load);
-	invfile = 64 - filecheck + invfile;
-	fclose(load);
-
-	if (invfile != 0) {
-		free(mem);
-		free(display);
-		return;
-	}
-
-
 	while (exit_flag) {
 		switch (mem[pc] & 0xF0) {	//extracting the first nibble
 
@@ -108,11 +131,11 @@ void _main(int argc, char *argv[]) {
 				draw_display(display, virtual_display, dark_mode);
 				break;
 			case 0xEE: //return from subroutine
-				pc = stack[stack[0]];
-				stack[0]--;
-				if (stack[0] == 0) {
+				pc = stack.main[stack.pointer];
+				stack.pointer--;
+				if (!stack.pointer) {
 					// error/graceful exit, delete the temporary solution later
-					stack[0]++;
+					stack.pointer++;
 				}
 				break;
 			default:	//error (0nnn)
@@ -124,11 +147,11 @@ void _main(int argc, char *argv[]) {
 			pc = (mem[pc] & 0x0F) | stemp;
 			break;
 		case 0x20:	//2nnn - Call subroutine at nnn
-			stack[0]++;
-			if (stack[0] > 16) {
+			stack.pointer++;
+			if (stack.pointer > 16) {
 				//error: stack overflow
 			}
-			stack[stack[0]] = pc;
+			stack.main[stack.pointer] = pc;
 			stemp = (mem[pc + 1] & 0xFF) << 8;
 			pc = (mem[pc] & 0x0F) | stemp;
 			break;
@@ -349,18 +372,8 @@ void _main(int argc, char *argv[]) {
 				exit_flag = 0;
 		}
 	}
-	//cleanup and savestate making
-	if (argc == 2) {
-		load = fopen(argv[2], "w+b");	//I should add an overwrite check
-		fwrite(registers, 1, 16, load);
-		fwrite(timers, 1, 2, load);
-		fwrite(&pc, 2, 1, load);
-		fwrite(&I, 2, 1, load);
-		fwrite(stack, 2, 17, load);
-		fwrite(mem, 2, 2048, load);
-		fwrite(display, 4, 64, load);
-		fclose(load);	//I'm not checking for errors here, ok?
-	}
+	//OSVFreeTimer(1);
+
 	free(mem);
 	free(display);
 	PortRestore();
