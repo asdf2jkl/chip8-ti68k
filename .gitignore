@@ -1,0 +1,5 @@
+tests
+bin
+*.exe
+*.zip
+*.7z

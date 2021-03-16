@@ -75,7 +75,7 @@ void _main() {
 	if (!mem) {
 		//error message
 		return;
-	}
+	} 
 	unsigned long *display = malloc(256);	//64*32bit (screen is actually 32*64, so each pair of values are a single row, left to right, top to bottom)
 	if (!display) {
 		//error message
@@ -96,19 +96,14 @@ void _main() {
 
 	rom = file_pointer("ch8test");
 	if (!rom) {
-		fileExit:
         free(mem);
         free(display);
         free(virtual_display);
         return;
     }
 	
-	memcpy(mem + 0x200, rom + 2, rom[0]);	//find value to put in rom[0] later.
-
-    //replace with memcpy later
-    i = 80;
-    while(i--);
-        mem[i] = numbers[i];
+	memcpy(mem + 0x1FF, rom, rom[-1]);	//find value to put in rom[0] later.
+	memcpy(mem, numbers, 80);
 
 	/*
 	if (IsPRGEnabled());
@@ -131,7 +126,7 @@ void _main() {
 			case 0xEE: //return from subroutine
 				pc = stack.main[stack.pointer];
 				stack.pointer--;
-				if (!stack.pointer) {
+				if (stack.pointer < 0) {
 					// error/graceful exit, delete the temporary solution later
 					stack.pointer++;
 				}
@@ -148,6 +143,7 @@ void _main() {
 			stack.pointer++;
 			if (stack.pointer > 16) {
 				//error: stack overflow
+				stack.pointer--;
 			}
 			stack.main[stack.pointer] = pc;
 			stemp = (mem[pc + 1] & 0xFF) << 8;
