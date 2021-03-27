@@ -101,8 +101,8 @@ void draw_display(unsigned long *c8_display, void *virtual_display) {
 
 /*
 CALLBACK void interrupt_timer(void) {   //Set PRG so that this runs at 60hz intervals
-    timers[0] ? timers[0]++ : timers[0];
-    timers[1] ? timers[1]++ : timers[1];
+    timers[0] ? timers[0]-- : timers[0];
+    timers[1] ? timers[1]-- : timers[1];
     //display sync and instruction pacing go here later
     return;
 }

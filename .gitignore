@@ -1,6 +1,13 @@
 tests
+<<<<<<< HEAD
 *.exe
 roms
 bin
 .vscode
 *.zip
+=======
+bin
+*.exe
+*.zip
+*.7z
+>>>>>>> 5402e5adabdad2b492f3a47090f8331a36848203
