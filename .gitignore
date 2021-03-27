@@ -1,0 +1,6 @@
+tests
+*.exe
+roms
+bin
+.vscode
+*.zip

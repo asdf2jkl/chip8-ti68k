@@ -1,13 +1,12 @@
 @ECHO ON
 TITLE C8-68k build script (windows)
-rmdir /s /q bin
 mkdir bin
 tigcc src/Calculator/calc.c -DUSE_TI89 -o c889
 tigcc -Os src/Calculator/calc.c -DUSE_TI89 -o c889-Os
 tigcc -O2 src/Calculator/calc.c -DUSE_TI89 -o c889-O2
 tigcc -O3 src/Calculator/calc.c -DUSE_TI89 -o c889-O3
 //tigcc src/Calculator/calc.c -DUSE_TI92P -o c892
-copy *.89z bin\*.89z
+copy *.89z bin
 del *.89z
 gcc -Os -s -o c8prep.exe src/Preprocessor/prep.c src/Preprocessor/bin2oth.c
 c8prep.exe roms/IBM_Logo.ch8

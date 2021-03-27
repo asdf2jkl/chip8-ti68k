@@ -31,7 +31,7 @@ char getkey(unsigned char in_key, char mode) {
 		|1|2|3|+|
 		|0|.|-|e|
 	*/
-	char out_key[17] = 0;
+	char out_key[17] = {0};
 	char i;
 	do {
 		BEGIN_KEYTEST
@@ -51,7 +51,7 @@ char getkey(unsigned char in_key, char mode) {
 			out_key[2] = _keytest_optimized(RR_8);
 			out_key[5] = _keytest_optimized(RR_5);
 			out_key[8] = _keytest_optimized(RR_2);
-			out_key[] = _keytest_optimized(RR_DOT);
+			out_key[0] = _keytest_optimized(RR_DOT);
 		END_KEYTEST
 		BEGIN_KEYTEST
 			out_key[1] = _keytest_optimized(RR_7);

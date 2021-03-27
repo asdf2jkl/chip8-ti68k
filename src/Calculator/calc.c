@@ -7,10 +7,10 @@
 
 //Globals (I know, I know, but I don't care.)
 volatile unsigned char timers[2];
-unsigned char exit_flag = 10;	//when this counts down to 1, a keyboard check occurs
+unsigned char exit_flag;	//when this counts down to 1, a keyboard check occurs
 
 
-#define SAVE_SCREEN
+//#define SAVE_SCREEN
 //#define OPTIMIZE_ROM_CALLS	//we'll see if this helps
 #ifdef USE_TI89
 #define COMMENT_PROGRAM_NAME   "c889"
@@ -22,6 +22,8 @@ unsigned char exit_flag = 10;	//when this counts down to 1, a keyboard check occ
 
 #include <tigcclib.h>
 #include "calc.h"
+
+#define PRINT_DEBUG
 
 //This should be everything but timing. It's not pretty, but it works.
 void _main() {
@@ -55,6 +57,14 @@ void _main() {
                         		 0xF0,0x80,0xF0,0x80,0xF0,
                         		 0xF0,0x80,0xF0,0x80,0x80};
 	//init
+
+	#ifdef PRINT_DEBUG
+	unsigned char* dbg_saveScr = malloc(LCD_SIZE);
+	if(!dbg_saveScr)
+		return;
+	#endif
+
+	exit_flag = 10;
 	unsigned char registers[16] = {0};
 	unsigned short pc, I = 0;
 	pc = 0x200;
@@ -71,7 +81,7 @@ void _main() {
 	unsigned char display_flag = 1;
 	short dark_mode = DARK_FALSE;	//this should be user set later
 	short *rom;
-	unsigned char *mem = calloc(4096, 1);
+	unsigned char *mem = calloc(4096, 1);	//I don't know why vscode is flagging this, it compiles just fine, and if I fix it, then tigcc yells at me
 	if (!mem) {
 		//error message
 		return;
@@ -81,33 +91,37 @@ void _main() {
 		//error message
 		free(mem);
 		return;
-	}
+	} else memset(display, dark_mode, 256);
 	randomize();	//initilizing (sic) rng
 	//setting up the virtual display buffer for clean drawing
 	void *virtual_display = malloc(LCD_SIZE);
-	if (!virtual_display) {
+	//SAVE_SCREEN doesn't seem to be working for me, so I'll just save the screen normally
+	void* savedScreen = malloc(LCD_SIZE);
+	if (!virtual_display && !savedScreen) {
 		//error
 		free(mem);
 		free(display);
 		return;
 	}
-	PortSet(virtual_display, 239, 127);	//it doesn't need to be this big, but this way dark mode and stuff works (and the ram is allocated already, in a single-user system)
-	memset(virtual_display, dark_mode, LCD_SIZE);	//now I actually don't know if memset needs one or two byte imputs, even though it accepts a short
+	LCD_save(savedScreen);
 
-	rom = file_pointer("ch8test");
+	PortSet(virtual_display, 239, 127);
+	memset(virtual_display, dark_mode, LCD_SIZE);	//now I actually don't know if memset needs one or two byte inputs, even though it accepts a short
+
+	rom = file_pointer("ch8test") + 2;
 	if (!rom) {
-		fileExit:
         free(mem);
         free(display);
         free(virtual_display);
+		free(savedScreen);
         return;
     }
 	
-	memcpy(mem + 0x200, rom + 2, rom[0]);	//find value to put in rom[0] later.
+	memcpy(mem + 0x200, rom, rom[-1]);	//rom[-1] should contain file size
 
     //replace with memcpy later
     i = 80;
-    while(i--);
+    while(i--)
         mem[i] = numbers[i];
 
 	/*
@@ -127,6 +141,21 @@ void _main() {
 				memset(display, dark_mode, 256);
 				//display_flag = 1;
 				draw_display(display, virtual_display);
+
+				#ifdef PRINT_DEBUG
+				ngetchx();
+				PortRestore();
+				LCD_save(dbg_saveScr);
+				clrscr();
+				printf("%X-%X (00E0) clear display\npc: %X\nI: %X\nregisters: ", mem[pc], mem[pc + 1], pc, I);
+				i = 0;
+				while (i != 16)
+				printf("%X ", registers[i++]);
+				ngetchx();
+				LCD_restore(dbg_saveScr);
+				PortSet(virtual_display, 239, 127);
+				#endif
+
 				break;
 			case 0xEE: //return from subroutine
 				pc = stack.main[stack.pointer];
@@ -167,9 +196,39 @@ void _main() {
 			break;
 		case 0x60:	//6xkk - Set Vx = kk
 			registers[mem[pc] & 0x0F] = mem[pc+1];
+
+				#ifdef PRINT_DEBUG
+				ngetchx();
+				PortRestore();
+				LCD_save(dbg_saveScr);
+				clrscr();
+				printf("%X-%X (6xkk) Set Vx = kk\npc: %X\nI: %X\nregisters: ", mem[pc], mem[pc + 1], pc, I);
+				i = 0;
+				while (i != 16)
+				printf("%X ", registers[i++]);
+				ngetchx();
+				LCD_restore(dbg_saveScr);
+				PortSet(virtual_display, 239, 127);
+				#endif
+
 			break;
 		case 0x70:	//7xkk - Set Vx = Vx + kk
 			registers[mem[pc] & 0x0F] = mem[pc+1] + registers[mem[pc] & 0x0F];
+
+				#ifdef PRINT_DEBUG
+				ngetchx();
+				PortRestore();
+				LCD_save(dbg_saveScr);
+				clrscr();
+				printf("%X-%X (7xkk) Set Vx = Vx + kk\npc: %X\nI: %X\nregisters: ", mem[pc], mem[pc + 1], pc, I);
+				i = 0;
+				while (i != 16)
+				printf("%X ", registers[i++]);
+				ngetchx();
+				LCD_restore(dbg_saveScr);
+				PortSet(virtual_display, 239, 127);
+				#endif
+
 			break;
 		case 0x80:
 			switch (mem[pc+1] & 0x0F) {
@@ -224,8 +283,23 @@ void _main() {
 				pc += 2;
 			break;
 		case 0xA0:	//Annn - Set I = nnn
-			I = mem[pc] & 0x0F00;
+			I = (mem[pc] & 0x0F) << 8;
 			I = I | mem[pc + 1];
+
+				#ifdef PRINT_DEBUG
+				ngetchx();
+				PortRestore();
+				LCD_save(dbg_saveScr);
+				clrscr();
+				printf("%X-%X (Annn) Set I = nnn\npc: %X\nI: %X\nregisters: ", mem[pc], mem[pc + 1], pc, I);
+				i = 0;
+				while (i != 16)
+				printf("%X ", registers[i++]);
+				ngetchx();
+				LCD_restore(dbg_saveScr);
+				PortSet(virtual_display, 239, 127);
+				#endif
+
 			break;
 		case 0xB0:	//Bnnn - Jump to location nnn + V0
 			stemp = mem[pc] & 0x0F;
@@ -248,6 +322,21 @@ void _main() {
 			}
 			//display_flag = 1;
 			draw_display(display, virtual_display);
+
+				#ifdef PRINT_DEBUG
+				ngetchx();
+				PortRestore();
+				LCD_save(dbg_saveScr);
+				clrscr();
+				printf("%X-%X (Dxyn) draw n-byte sprite from I to Vx,Vy\npc: %X\nI: %X\nregisters: ", mem[pc], mem[pc + 1], pc, I);
+				i = 0;
+				while (i != 16)
+				printf("%X ", registers[i++]);
+				ngetchx();
+				LCD_restore(dbg_saveScr);
+				PortSet(virtual_display, 239, 127);
+				#endif
+
 			break;
 		case 0xE0:	//keyboard handling
 			switch (mem[pc+1] & 0x0F) {
@@ -376,5 +465,10 @@ void _main() {
 	free(display);
 	PortRestore();
 	free(virtual_display);
+	LCD_restore(savedScreen);
+	free(savedScreen);
+	#ifdef PRINT_DEBUG
+	free(dbg_saveScr);
+	#endif
 	return;
 }
