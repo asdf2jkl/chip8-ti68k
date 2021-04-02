@@ -5,9 +5,7 @@ This project is incomplete and non-functional. If somehow you gain access to thi
 
 **TODO:**
 
-[x]  Create a functional rom preprocessor so that testing can begin.
-
-[ ]  Make it work without crashing. **(Important)**
+[ ] Go through and verify every instruction.
 
 [ ]	Create an inturupt based timing function.
 

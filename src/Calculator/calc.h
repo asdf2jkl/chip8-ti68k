@@ -2,6 +2,11 @@
 * All the functions other than _main go here (keyboard handling, display, timing [to be handled next])
 */
 
+#define first_nibble (mem[pc] >> 4) & 0x0F
+#define second_nibble mem[pc] & 0x0F
+#define third_nibble (mem[pc+1] >> 4) & 0x0F
+#define fourth_nibble mem[pc+1] & 0x0F
+
 #define DARK_TRUE 0xFF
 #define DARK_FALSE 0x00
 

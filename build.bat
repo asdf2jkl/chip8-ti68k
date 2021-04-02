@@ -1,7 +1,7 @@
 @ECHO ON
 TITLE C8-68k build script (windows)
 mkdir bin
-tigcc src/Calculator/calc.c -DUSE_TI89 -o c889
+tigcc src/Calculator/calc.c -DUSE_TI89 -o c889 -DPRINT_DEBUG
 tigcc -Os src/Calculator/calc.c -DUSE_TI89 -o c889-Os
 tigcc -O2 src/Calculator/calc.c -DUSE_TI89 -o c889-O2
 tigcc -O3 src/Calculator/calc.c -DUSE_TI89 -o c889-O3
