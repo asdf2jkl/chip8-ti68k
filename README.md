@@ -5,19 +5,17 @@ This project is incomplete and non-functional. If somehow you gain access to thi
 
 **TODO:**
 
-[x]  Create a functional rom preprocessor so that testing can begin.
+[ ] Go through and verify every instruction.
 
-[]  Make it work without crashing. **(Important)**
+[ ]	Create an inturupt based timing function.
 
-[]	Create an inturupt based timing function.
+[ ]	Add TI-92 Plus and Voyage 200 keyboard compatibility.
 
-[]	Add TI-92 Plus and Voyage 200 keyboard compatibility.
+[ ]	Polish.
 
-[]	Polish.
+[ ]	Add support for various CHIP-8 extentions.
 
-[]	Add support for various CHIP-8 extentions.
-
-[]	Polish even more.
+[ ]	Polish even more.
 
 
 **Credits go to:**
